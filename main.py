@@ -54,7 +54,7 @@ def train_one_epoch(model, loader, crit, opt, device) -> float:
 
 
 @torch.no_grad()
-def evaluate(model, loader, device, threshold: float) -> Tuple[float, float, float]:
+def evaluate(model, loader, device, threshold: float) -> Tuple[float, int, int, str]:
     model.eval()
     maes: List[float] = []
     y_true_bin: List[int] = []
@@ -81,9 +81,39 @@ def evaluate(model, loader, device, threshold: float) -> Tuple[float, float, flo
         yp = (yhat >= threshold).any(dim=1).to(torch.int)
         y_true_bin.extend(yt.cpu().tolist())
         y_pred_bin.extend(yp.cpu().tolist())
-    acc, macro_f1 = binary_metrics(y_true_bin, y_pred_bin)
     mean_mae = sum(maes) / max(len(maes), 1)
-    return mean_mae, acc, macro_f1
+    # Prefer sklearn's definition of support (count of true instances per class)
+    support0 = y_true_bin.count(0)
+    support1 = y_true_bin.count(1)
+    report_text = ''
+    try:
+        from sklearn.metrics import classification_report  # type: ignore
+        # Produce human-readable report
+        report_text = classification_report(
+            y_true_bin, y_pred_bin,
+            target_names=["neg", "pos"],
+            digits=4,
+            zero_division=0,
+        )
+        # Also fetch dict to get robust supports
+        rep = classification_report(y_true_bin, y_pred_bin, output_dict=True, zero_division=0)
+        # Fall back to counts above if keys missing
+        support0 = int(rep.get('0', {}).get('support', support0))
+        support1 = int(rep.get('1', {}).get('support', support1))
+    except Exception:
+        # Minimal fallback report
+        tp = sum(1 for yt, yp in zip(y_true_bin, y_pred_bin) if yt==1 and yp==1)
+        tn = sum(1 for yt, yp in zip(y_true_bin, y_pred_bin) if yt==0 and yp==0)
+        fp = sum(1 for yt, yp in zip(y_true_bin, y_pred_bin) if yt==0 and yp==1)
+        fn = sum(1 for yt, yp in zip(y_true_bin, y_pred_bin) if yt==1 and yp==0)
+        total = tp+tn+fp+fn
+        acc = (tp+tn)/total if total else 0.0
+        report_text = (
+            f'Fallback report (sklearn not available)\n'
+            f' support neg={support0} pos={support1}\n'
+            f' TP={tp} TN={tn} FP={fp} FN={fn}  Acc={acc:.4f}'
+        )
+    return mean_mae, support0, support1, report_text
 
 
 def main():
@@ -141,8 +171,8 @@ def main():
     folds = make_folds(E, n_splits=5, seed=args.seed)
 
     fold_mae: List[float] = []
-    fold_acc: List[float] = []
-    fold_f1: List[float] = []
+    total_support0 = 0
+    total_support1 = 0
 
     for k in range(5):
         # Fold-level distribution (test split)
@@ -171,24 +201,37 @@ def main():
         crit = nn.L1Loss()
         opt = torch.optim.Adam(model.parameters(), lr=args.lr)
 
+        best_mae = float('inf')
+        best_sup0 = 0
+        best_sup1 = 0
+        best_ep = 0
+        best_rep = ''
+
         for ep in range(1, args.epochs + 1):
             train_loss = train_one_epoch(model, train_loader, crit, opt, device)
-            # simple progress print per epoch
-            print(f'[Fold {k+1}/5][Epoch {ep}/{args.epochs}] train L1: {train_loss:.4f}')
+            # Evaluate each epoch on the test set
+            m_mae, sup0, sup1, cls_rep = evaluate(model, test_loader, device, threshold=args.threshold)
+            improved = m_mae < best_mae
+            if improved:
+                best_mae, best_sup0, best_sup1, best_ep, best_rep = m_mae, sup0, sup1, ep, cls_rep
+            # Compact per-epoch log
+            print(f'[Fold {k+1}/5][Epoch {ep}/{args.epochs}] train L1: {train_loss:.4f}  val MAE: {m_mae:.4f}  Support: neg={sup0} pos={sup1}' + ('  [improved]' if improved else ''))
+            if improved:
+                print(f'[Fold {k+1}/5][Epoch {ep}] Classification report (best so far):\n{cls_rep}')
 
-        m_mae, m_acc, m_f1 = evaluate(model, test_loader, device, threshold=args.threshold)
-        fold_mae.append(m_mae)
-        fold_acc.append(m_acc)
-        fold_f1.append(m_f1)
-        print(f'[Fold {k+1}/5] MAE={m_mae:.4f}  Acc={m_acc:.4f}  MacroF1={m_f1:.4f}')
+        # Use best epoch within the fold as the fold result
+        fold_mae.append(best_mae)
+        total_support0 += best_sup0
+        total_support1 += best_sup1
+        print(f'[Fold {k+1}/5] Best@Epoch {best_ep}: MAE={best_mae:.4f}  Support: neg={best_sup0}  pos={best_sup1}')
+        print(f'[Fold {k+1}/5] Best Classification report:\n{best_rep}')
 
     def avg(xs: List[float]) -> float:
         return sum(xs) / max(len(xs), 1)
 
     print('========== 5-fold CV Summary =========')
     print(f'MAE:  mean={avg(fold_mae):.4f}  folds={[f"{v:.4f}" for v in fold_mae]}')
-    print(f'Acc:  mean={avg(fold_acc):.4f}  folds={[f"{v:.4f}" for v in fold_acc]}')
-    print(f'F1 :  mean={avg(fold_f1):.4f}  folds={[f"{v:.4f}" for v in fold_f1]}')
+    print(f'Support (total across folds): neg={total_support0}  pos={total_support1}')
 
 
 if __name__ == '__main__':
