@@ -24,16 +24,27 @@ def get_device() -> torch.device:
 
 
 class WindowDataset(Dataset):
-    def __init__(self, X: Sequence[Sequence[Sequence[float]]], Y: Sequence[Sequence[float]]):
+    def __init__(
+        self,
+        X: Sequence[Sequence[Sequence[float]]],
+        Y: Sequence[Sequence[float]],
+        indices: Sequence[int] | None = None,
+        clip_max: float | None = None,
+    ):
         self.X = X
         self.Y = Y
+        self.indices = list(indices) if indices is not None else list(range(len(X)))
+        self.clip_max = clip_max
 
     def __len__(self) -> int:
-        return len(self.X)
+        return len(self.indices)
 
     def __getitem__(self, idx: int):
-        x = torch.tensor(self.X[idx], dtype=torch.float32)
-        y = torch.tensor(self.Y[idx], dtype=torch.float32)
+        real_idx = self.indices[idx]
+        x = torch.tensor(self.X[real_idx], dtype=torch.float32)
+        y = torch.tensor(self.Y[real_idx], dtype=torch.float32)
+        if self.clip_max is not None:
+            x = torch.clamp(x, max=float(self.clip_max))
         return x, y
 
 

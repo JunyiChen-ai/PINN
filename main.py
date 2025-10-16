@@ -124,8 +124,8 @@ def main():
         stride=args.stride,
         use_channels=channels,
         target_channel=args.target_channel,
-        trunc_temp=args.trunc_temp,
-        drop_after_fail=True if args.trunc_temp is not None else False,
+        trunc_temp=None,
+        drop_after_fail=False,
     )
     if not X:
         raise RuntimeError('No samples built. Try reducing --history/--horizon or disable truncation.')
@@ -152,8 +152,10 @@ def main():
         tpos = sum(1 for y in tY if (torch.tensor(y) >= args.threshold).any().item())
         tneg = ttotal - tpos
         print(f'[Info][Fold {k+1}/5] test windows: total={ttotal}  pos={tpos}  neg={tneg}  ratio={tpos/ttotal if ttotal else 0:.4f}{trunc_note}')
-        train_loader = DataLoader(Subset(ds, train_idx), batch_size=args.batch_size, shuffle=True, drop_last=False)
-        test_loader = DataLoader(Subset(ds, test_idx), batch_size=args.batch_size, shuffle=False, drop_last=False)
+        train_ds = WindowDataset(X, Y, indices=train_idx, clip_max=args.trunc_temp)
+        test_ds = WindowDataset(X, Y, indices=test_idx, clip_max=None)
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=False)
+        test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
         model = MambaForecaster(
             d_in=len(channels),
