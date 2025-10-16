@@ -154,8 +154,9 @@ def main():
         stride=args.stride,
         use_channels=channels,
         target_channel=args.target_channel,
-        trunc_temp=None,
+        trunc_temp=args.trunc_temp,
         drop_after_fail=False,
+        stop_when_all_channels_reach_trunc=True if args.trunc_temp is not None else False,
     )
     if not X:
         raise RuntimeError('No samples built. Try reducing --history/--horizon or disable truncation.')
@@ -182,8 +183,9 @@ def main():
         tpos = sum(1 for y in tY if (torch.tensor(y) >= args.threshold).any().item())
         tneg = ttotal - tpos
         print(f'[Info][Fold {k+1}/5] test windows: total={ttotal}  pos={tpos}  neg={tneg}  ratio={tpos/ttotal if ttotal else 0:.4f}{trunc_note}')
+        # Apply the same clamping behavior to both train and test inputs when truncation is enabled
         train_ds = WindowDataset(X, Y, indices=train_idx, clip_max=args.trunc_temp)
-        test_ds = WindowDataset(X, Y, indices=test_idx, clip_max=None)
+        test_ds = WindowDataset(X, Y, indices=test_idx, clip_max=args.trunc_temp)
         train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=False)
         test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, drop_last=False)
 

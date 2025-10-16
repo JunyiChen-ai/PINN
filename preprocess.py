@@ -207,6 +207,7 @@ def build_window_samples(
     target_channel: str = 'HD1',
     trunc_temp: Optional[float] = None,
     drop_after_fail: bool = True,
+    stop_when_all_channels_reach_trunc: bool = False,
 ) -> Tuple[List[List[List[float]]], List[List[float]], List[int]]:
     """
     Create sliding-window samples across experiments.
@@ -236,10 +237,31 @@ def build_window_samples(
             for ch in use_channels:
                 fail_times[ch] = None
 
+        # Optionally compute a global stop index where all channels are >= trunc_temp
+        stop_idx: Optional[int] = None
+        if trunc_temp is not None and stop_when_all_channels_reach_trunc:
+            for j in range(T):
+                if all(rec[ch][j] >= trunc_temp for ch in use_channels):
+                    stop_idx = j
+                    break
+
         i = 0
         while i + history + horizon <= T:
             start = i
             end = i + history  # exclusive
+            # If requested, stop constructing windows once all channels have reached trunc at some time
+            if stop_idx is not None:
+                # Do not use windows whose input touches or passes stop, or whose targets go beyond stop
+                last_in = end - 1
+                last_out = end + horizon - 1
+                if last_in >= stop_idx or last_out > stop_idx:
+                    # Move to next position; if even the earliest window violates, we can break to speed up
+                    i += stride
+                    # If our start is already beyond or at stop, no further windows will be valid
+                    if start >= stop_idx:
+                        break
+                    continue
+
             if trunc_temp is not None and drop_after_fail:
                 invalid = False
                 t_end = rec['Time'][end - 1]
@@ -253,7 +275,14 @@ def build_window_samples(
                     continue
             xw: List[List[float]] = []
             for j in range(start, end):
-                xw.append([rec[ch][j] for ch in use_channels])
+                row = []
+                for ch in use_channels:
+                    v = rec[ch][j]
+                    if trunc_temp is not None:
+                        # Clamp input values to trunc_temp to reflect sensor saturation
+                        v = min(v, trunc_temp)
+                    row.append(v)
+                xw.append(row)
             yw: List[float] = []
             for j in range(end, end + horizon):
                 yw.append(rec[target_channel][j])
