@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader, Subset
 
 from preprocess import load_timeseries, build_window_samples
 from model import MambaForecaster
+from baseline import BaselineForecaster, resolve_baseline_from_name
 from util import (
     set_seed,
     get_device,
@@ -240,20 +241,33 @@ def main():
         train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=False)
         test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
-        model = MambaForecaster(
-            d_in=d_in,
-            d_model=args.d_model,
-            n_layers=args.n_layers,
-            horizon=args.horizon,
-            d_state=args.d_state,
-            d_conv=args.d_conv,
-            expand=args.expand,
-            d_out=1,  # predicting target_channel scalar trajectory
-            enable_physics=args.enable_physics_loss,
-            n_neighbors=n_neighbors,
-            lambda_phys=args.lambda_phys,
-            dt=args.dt,
-        ).to(device)
+        if args.model.lower() == 'mamba':
+            model = MambaForecaster(
+                d_in=d_in,
+                d_model=args.d_model,
+                n_layers=args.n_layers,
+                horizon=args.horizon,
+                d_state=args.d_state,
+                d_conv=args.d_conv,
+                expand=args.expand,
+                d_out=1,
+                enable_physics=args.enable_physics_loss,
+                n_neighbors=n_neighbors,
+                lambda_phys=args.lambda_phys,
+                dt=args.dt,
+            ).to(device)
+        else:
+            rnn_type, bidir, use_attn = resolve_baseline_from_name(args.model)
+            model = BaselineForecaster(
+                d_in=d_in,
+                horizon=args.horizon,
+                rnn_type=rnn_type,
+                hidden_size=args.hidden_size,
+                num_layers=args.rnn_layers,
+                bidirectional=bidir,
+                use_attention=use_attn,
+                dropout=args.dropout,
+            ).to(device)
 
         crit = nn.L1Loss()
         opt = torch.optim.Adam(model.parameters(), lr=args.lr)

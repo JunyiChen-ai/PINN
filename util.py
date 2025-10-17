@@ -158,6 +158,12 @@ def add_main_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--dt', type=float, default=20.0, help='Time step (s) between samples')
     parser.add_argument('--env_channel', type=str, default='HD2', help='Environment channel name (corridor)')
     parser.add_argument('--neighbor_channels', type=str, default='HD3', help='Comma-separated neighbor channel names (e.g., room2)')
+    # baseline selector and hyperparameters
+    parser.add_argument('--model', type=str, default='mamba',
+                        help='Model: mamba | RNN | LSTM | GRU | Bi-RNN | Bi-LSTM | Bi-GRU | Bi-LSTM-Attention | Bi-GRU-Attention')
+    parser.add_argument('--hidden_size', type=int, default=128)
+    parser.add_argument('--rnn_layers', type=int, default=2)
+    parser.add_argument('--dropout', type=float, default=0.0)
 
 
 __all__ = [
