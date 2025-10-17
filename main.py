@@ -146,27 +146,69 @@ def main():
                 RuntimeWarning,
             )
 
-    data_path = Path(args.data_path) if args.data_path else default_excel_path(Path.cwd())
-    if not data_path or not Path(data_path).exists():
-        raise FileNotFoundError('Excel data file not found. Set --data_path or env FLASHOVER_XLSX.')
-
-    series = load_timeseries(str(data_path))
-    channels = tuple([c.strip() for c in args.channels.split(',') if c.strip()])
-    neighbor_chs = tuple([c.strip() for c in args.neighbor_channels.split(',') if c.strip()])
-    env_ch = args.env_channel.strip() if args.env_channel else None
-    future_chs = tuple([*neighbor_chs, *( [env_ch] if env_ch else [] )])
-    X, Y, E, N = build_window_samples(
-        series=series,
-        history=args.history,
-        horizon=args.horizon,
-        stride=args.stride,
-        use_channels=channels,
-        target_channel=args.target_channel,
-        trunc_temp=args.trunc_temp,
-        drop_after_fail=False,
-        stop_when_all_channels_reach_trunc=True if args.trunc_temp is not None else False,
-        future_channels=future_chs,
-    )
+    if args.dataset == 3:
+        data_path = Path(args.data_path) if args.data_path else default_excel_path(Path.cwd())
+        if not data_path or not Path(data_path).exists():
+            raise FileNotFoundError('Excel data file not found. Set --data_path or env FLASHOVER_XLSX.')
+        series = load_timeseries(str(data_path))
+        channels = tuple([c.strip() for c in args.channels.split(',') if c.strip()])
+        neighbor_chs = tuple([c.strip() for c in args.neighbor_channels.split(',') if c.strip()])
+        env_ch = args.env_channel.strip() if args.env_channel else None
+        future_chs = tuple([*neighbor_chs, *( [env_ch] if env_ch else [] )])
+        X, Y, E, N = build_window_samples(
+            series=series,
+            history=args.history,
+            horizon=args.horizon,
+            stride=args.stride,
+            use_channels=channels,
+            target_channel=args.target_channel,
+            trunc_temp=args.trunc_temp,
+            drop_after_fail=False,
+            stop_when_all_channels_reach_trunc=True if args.trunc_temp is not None else False,
+            future_channels=future_chs,
+        )
+        auto_target_idx = channels.index(args.target_channel) if args.target_channel in channels else None
+        n_neighbors = len(neighbor_chs)
+        d_in = len(channels)
+    else:
+        # six-compartment dataset: auto target/neighbors per experiment, env left empty
+        from preprocess import load_six_series, build_window_samples_dynamic
+        six_root = Path('DataForFlashover/six-compartments')
+        series, exp_to_room, room_to_hd = load_six_series(str(Path.cwd()/six_root))
+        # Build mapping exp->target HD, neighbors (default: all others)
+        exp_to_target: dict[int, str] = {}
+        exp_to_neighbors: dict[int, list[str]] = {}
+        for exp, room_num in exp_to_room.items():
+            # Map numeric to room name if possible via AllData mapping in room_to_hd keys
+            # room_to_hd has names like 'Dining Room', 'Kitchen', etc. Numeric mapping isn't provided programmatically here,
+            # so we heuristically map: find HD whose compartment matches fire room name if present in AllData Experiments.
+            # For this loader, Range files already include HD columns, so we choose target by which HD corresponds to the named room.
+            # If numeric label can't be mapped, fall back to HD1.
+            # Numeric codes per AllData text: 1 Dining Room, 2 Kitchen, 4 Living Room, 5 Bedroom 1, 7 Bedroom 2, 8 Bedroom 3
+            code_to_name = {'1':'Dining Room','2':'Kitchen','4':'Living Room','5':'Bedroom 1','7':'Bedroom 2','8':'Bedroom 3'}
+            name = code_to_name.get(room_num, None)
+            if name and name in room_to_hd:
+                tgt = room_to_hd[name]
+            else:
+                tgt = 'HD1'
+            exp_to_target[exp] = tgt
+            # neighbors: all other HDs
+            all_hds = ['HD1','HD2','HD3','HD4','HD5','HD6']
+            exp_to_neighbors[exp] = [h for h in all_hds if h != tgt]
+        X, Y, E, N = build_window_samples_dynamic(
+            series=series,
+            exp_to_target_hd=exp_to_target,
+            exp_to_neighbors=exp_to_neighbors,
+            history=args.history,
+            horizon=args.horizon,
+            stride=args.stride,
+            trunc_temp=args.trunc_temp,
+            stop_when_all_channels_reach_trunc=True if args.trunc_temp is not None else False,
+        )
+        channels = tuple()  # not used for six in dynamic mode
+        auto_target_idx = None
+        n_neighbors = 5  # all other rooms as neighbors
+        d_in = 6
     if not X:
         raise RuntimeError('No samples built. Try reducing --history/--horizon or disable truncation.')
 
@@ -199,7 +241,7 @@ def main():
         test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
         model = MambaForecaster(
-            d_in=len(channels),
+            d_in=d_in,
             d_model=args.d_model,
             n_layers=args.n_layers,
             horizon=args.horizon,
@@ -208,7 +250,7 @@ def main():
             expand=args.expand,
             d_out=1,  # predicting target_channel scalar trajectory
             enable_physics=args.enable_physics_loss,
-            n_neighbors=len(neighbor_chs),
+            n_neighbors=n_neighbors,
             lambda_phys=args.lambda_phys,
             dt=args.dt,
         ).to(device)
@@ -223,8 +265,7 @@ def main():
         best_rep = ''
 
         for ep in range(1, args.epochs + 1):
-            target_idx = channels.index(args.target_channel) if args.target_channel in channels else None
-            train_loss = model.train_one_epoch(train_loader, opt, crit, target_idx)
+            train_loss = model.train_one_epoch(train_loader, opt, crit, auto_target_idx)
             # Evaluate each epoch on the test set
             m_mae, sup0, sup1, cls_rep = evaluate(model, test_loader, device, threshold=args.threshold)
             improved = m_mae < best_mae

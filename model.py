@@ -150,13 +150,19 @@ class MambaForecaster(nn.Module):
             data_loss = crit_data(yhat, yb)
             phys_loss = torch.tensor(0.0, device=yb.device)
             if self.enable_physics and nb is not None:
-                # nb: [B,H,N_nei+1?] We'll assume last dim: neighbors first, last column env
-                # By convention in main we will pack neighbors first then env as last column
-                if nb.shape[-1] >= 1:
-                    neighbors = nb[:, :, :-1] if nb.shape[-1] > 1 else None
-                    env = nb[:, :, -1] if nb.shape[-1] >= 1 else None
-                else:
-                    neighbors, env = None, None
+                # Deduce neighbors/env by parameter shapes
+                nnb = int(self.U_nei_raw.numel())
+                total_cols = nb.shape[-1]
+                neighbors = None
+                env = None
+                if total_cols == nnb:
+                    neighbors = nb
+                elif total_cols == nnb + 1:
+                    neighbors = nb[:, :, :nnb]
+                    env = nb[:, :, nnb]
+                elif total_cols > 0 and nnb == 0:
+                    # treat all as env if no neighbors configured
+                    env = nb.squeeze(-1) if nb.shape[-1] == 1 else None
                 # last history target from xb at last time step and target channel index
                 last_hist_target = None
                 if target_channel_index is not None:

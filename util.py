@@ -151,6 +151,7 @@ def add_main_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--enable_fp32_high_precision', action='store_true',
                         help='Enable torch.set_float32_matmul_precision("high"). Warn if request fails.')
+    parser.add_argument('--dataset', type=int, choices=[3,6], default=3, help='Select dataset: 3 for three-compartments, 6 for six-compartments')
     # physics options
     parser.add_argument('--enable_physics_loss', action='store_true', help='Enable physics-based regularization loss')
     parser.add_argument('--lambda_phys', type=float, default=0.0, help='Weight for physics loss')

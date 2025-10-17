@@ -315,3 +315,204 @@ __all__ = [
     'load_timeseries',
     'build_window_samples',
 ]
+
+# ===================== Six-compartment loader helpers =====================
+
+def _read_xlsx_rows(path: Path) -> Tuple[List[str], List[List[Optional[str]]]]:
+    with zipfile.ZipFile(path, 'r') as z:
+        shared = _read_shared_strings(z)
+        sheets = _workbook_sheet_map(z)
+        # Take first (or named Sheet1)
+        if 'Sheet1' in sheets:
+            sheet_path = sheets['Sheet1']
+        else:
+            # pick the first worksheet
+            # find first rel target that matches worksheets/sheet*.xml
+            sheet_path = next((v for k, v in sheets.items() if 'worksheets/sheet' in v), None)
+            if sheet_path is None:
+                raise ValueError('No worksheets found in ' + str(path))
+        rows = _parse_sheet_rows(z, sheet_path, shared)
+        header = rows[0]
+        data = rows[2:]  # skip units row
+        return header, data
+
+
+def load_six_series(root_dir: str) -> Tuple[Dict[int, Dict[str, List[float]]], Dict[int, str], Dict[str, str]]:
+    """
+    Load six-compartment RangeHouse datasets (multiple Excel files) and metadata.
+    Returns:
+      series: exp_id -> {'Time': [...], 'HD1': [...], ..., 'HD6': [...]} (floats)
+      exp_to_fire_room: exp_id -> room name (e.g., 'Dining Room')
+      room_to_hd: room name -> 'HDx' mapping (from 'Heat Detectors' sheet)
+    """
+    root = Path(root_dir)
+    all_data = root / 'P-Flash_RangeHouse_SixCompartments_AllData_2021-1-9.xlsx'
+    if not all_data.exists():
+        raise FileNotFoundError(f'AllData workbook not found: {all_data}')
+    # Parse room_to_hd from Heat Detectors
+    with zipfile.ZipFile(all_data, 'r') as z:
+        shared = _read_shared_strings(z)
+        sheets = _workbook_sheet_map(z)
+        rows_hd = _parse_sheet_rows(z, sheets['Heat Detectors'], shared)
+        # find header row index
+        hidx = None
+        for i, r in enumerate(rows_hd[:6]):
+            if r and r[0] == 'Name':
+                hidx = i
+                break
+        room_to_hd: Dict[str, str] = {}
+        if hidx is not None:
+            hdr = rows_hd[hidx]
+            cols = {name: idx for idx, name in enumerate(hdr)}
+            for r in rows_hd[hidx + 2 : hidx + 2 + 6]:
+                if r and len(r) > cols['Name'] and r[cols['Name']]:
+                    hd = r[cols['Name']].strip()  # e.g., 'HD1'
+                    room = r[cols['Compartment']].strip()
+                    room_to_hd[room] = hd
+        # parse compartment numeric mapping (may help if needed)
+        # rows_map = _parse_sheet_rows(z, sheets['Compartment Mapping'], shared)
+
+    # Collect all RangeHouseData*.xlsx files
+    files = sorted(root.glob('RangeHouseData*.xlsx'))
+    if not files:
+        raise FileNotFoundError('No RangeHouseData*.xlsx files found in ' + str(root))
+
+    series: Dict[int, Dict[str, List[float]]] = {}
+    exp_to_room: Dict[int, str] = {}
+
+    for fp in files:
+        header, data_rows = _read_xlsx_rows(fp)
+        # Build column index map
+        col = {name: idx for idx, name in enumerate(header) if name}
+        required = ['Experiment #', 'Time', 'HD 1', 'HD 2', 'HD 3', 'HD 4', 'HD 5', 'HD 6', 'Fire Room']
+        missing = [r for r in required if r not in col]
+        if missing:
+            # Some files have HD columns in different order; we'll be lenient by scanning keys containing 'HD'
+            pass
+        for r in data_rows:
+            if not r:
+                continue
+            try:
+                ex = r[col['Experiment #']]
+            except Exception:
+                continue
+            if ex in (None, ''):
+                continue
+            try:
+                exp_id = int(float(ex))
+            except Exception:
+                continue
+            # parse time and HD temps
+            try:
+                t = float(r[col['Time']])
+                hds = {}
+                for k in ['HD 1','HD 2','HD 3','HD 4','HD 5','HD 6']:
+                    hds[k] = float(r[col[k]]) if r[col[k]] not in (None,'') else None
+                # ensure no None
+                if any(v is None for v in hds.values()):
+                    continue
+            except Exception:
+                continue
+            rec = series.setdefault(exp_id, {'Time': [], 'HD1': [], 'HD2': [], 'HD3': [], 'HD4': [], 'HD5': [], 'HD6': []})
+            rec['Time'].append(t)
+            rec['HD1'].append(hds['HD 1'])
+            rec['HD2'].append(hds['HD 2'])
+            rec['HD3'].append(hds['HD 3'])
+            rec['HD4'].append(hds['HD 4'])
+            rec['HD5'].append(hds['HD 5'])
+            rec['HD6'].append(hds['HD 6'])
+            # record fire room mapping
+            fr = r[col['Fire Room']]
+            if fr not in (None,''):
+                try:
+                    # Fire Room is numeric per AllData mapping table; we don't have numeric->name mapping lines here
+                    # But RangeHouse headers have fixed HD-to-room; we'll map numeric via AllData mapping if needed later
+                    exp_to_room.setdefault(exp_id, str(int(float(fr))))
+                except Exception:
+                    pass
+
+    # Sort by time
+    for rec in series.values():
+        zipped = list(zip(rec['Time'], rec['HD1'], rec['HD2'], rec['HD3'], rec['HD4'], rec['HD5'], rec['HD6']))
+        zipped.sort(key=lambda x: x[0])
+        t, a,b,c,d,e,f = zip(*zipped)
+        rec['Time'], rec['HD1'], rec['HD2'], rec['HD3'], rec['HD4'], rec['HD5'], rec['HD6'] = list(t), list(a), list(b), list(c), list(d), list(e), list(f)
+
+    return series, exp_to_room, room_to_hd
+
+
+def build_window_samples_dynamic(
+    series: Dict[int, Dict[str, List[float]]],
+    exp_to_target_hd: Dict[int, str],
+    exp_to_neighbors: Dict[int, List[str]],
+    history: int,
+    horizon: int,
+    stride: int = 1,
+    trunc_temp: Optional[float] = None,
+    stop_when_all_channels_reach_trunc: bool = False,
+) -> Tuple[List[List[List[float]]], List[List[float]], List[int], List[List[List[float]]]]:
+    """
+    Build windows where input channels and target channel depend on the experiment.
+    For N (future channels), we pack neighbors only (no env). Shape per sample: [H, Nn].
+    """
+    X: List[List[List[float]]] = []
+    Y: List[List[float]] = []
+    E: List[int] = []
+    N: List[List[List[float]]] = []
+
+    for exp, rec in series.items():
+        T = len(rec['Time'])
+        if exp not in exp_to_target_hd:
+            continue
+        tgt = exp_to_target_hd[exp]
+        neigh = exp_to_neighbors.get(exp, [])
+        use_channels = neigh + [tgt]
+        # determine stop idx if needed
+        stop_idx: Optional[int] = None
+        if trunc_temp is not None and stop_when_all_channels_reach_trunc:
+            for j in range(T):
+                if all(rec[ch][j] >= trunc_temp for ch in use_channels):
+                    stop_idx = j
+                    break
+
+        i = 0
+        while i + history + horizon <= T:
+            start = i
+            end = i + history
+            if stop_idx is not None:
+                last_in = end - 1
+                last_out = end + horizon - 1
+                if last_in >= stop_idx or last_out > stop_idx:
+                    i += stride
+                    if start >= stop_idx:
+                        break
+                    continue
+            # build input window
+            xw = []
+            for j in range(start, end):
+                row = []
+                for ch in use_channels:
+                    v = rec[ch][j]
+                    if trunc_temp is not None:
+                        v = min(v, trunc_temp)
+                    row.append(v)
+                xw.append(row)
+            # target seq
+            yw = [rec[tgt][j] for j in range(end, end + horizon)]
+            # future neighbors only (no env)
+            nw = []
+            if neigh:
+                for j in range(end, end + horizon):
+                    rowf = []
+                    for ch in neigh:
+                        v = rec[ch][j]
+                        if trunc_temp is not None:
+                            v = min(v, trunc_temp)
+                        rowf.append(v)
+                    nw.append(rowf)
+            X.append(xw)
+            Y.append(yw)
+            E.append(exp)
+            N.append(nw)
+            i += stride
+    return X, Y, E, N
