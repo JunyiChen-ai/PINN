@@ -60,7 +60,12 @@ def evaluate(model, loader, device, threshold: float) -> Tuple[float, int, int, 
     y_true_bin: List[int] = []
     y_pred_bin: List[int] = []
     warned = False
-    for step, (xb, yb) in enumerate(loader):
+    for step, batch in enumerate(loader):
+        if isinstance(batch, (list, tuple)) and len(batch) == 3:
+            xb, yb, nb = batch
+        else:
+            xb, yb = batch
+            nb = None
         xb = xb.to(device)
         yb = yb.to(device)
         if not torch.isfinite(xb).all() or not torch.isfinite(yb).all():
@@ -147,7 +152,10 @@ def main():
 
     series = load_timeseries(str(data_path))
     channels = tuple([c.strip() for c in args.channels.split(',') if c.strip()])
-    X, Y, E = build_window_samples(
+    neighbor_chs = tuple([c.strip() for c in args.neighbor_channels.split(',') if c.strip()])
+    env_ch = args.env_channel.strip() if args.env_channel else None
+    future_chs = tuple([*neighbor_chs, *( [env_ch] if env_ch else [] )])
+    X, Y, E, N = build_window_samples(
         series=series,
         history=args.history,
         horizon=args.horizon,
@@ -157,6 +165,7 @@ def main():
         trunc_temp=args.trunc_temp,
         drop_after_fail=False,
         stop_when_all_channels_reach_trunc=True if args.trunc_temp is not None else False,
+        future_channels=future_chs,
     )
     if not X:
         raise RuntimeError('No samples built. Try reducing --history/--horizon or disable truncation.')
@@ -168,7 +177,7 @@ def main():
     trunc_note = f" (trunc_temp={args.trunc_temp})" if args.trunc_temp is not None else ""
     print(f'[Info] Dataset windows: total={total}  pos={pos}  neg={neg}  ratio={pos/total if total else 0:.4f}{trunc_note}')
 
-    ds = WindowDataset(X, Y)
+    ds = WindowDataset(X, Y, N)
     folds = make_folds(E, n_splits=5, seed=args.seed)
 
     fold_mae: List[float] = []
@@ -184,8 +193,8 @@ def main():
         tneg = ttotal - tpos
         print(f'[Info][Fold {k+1}/5] test windows: total={ttotal}  pos={tpos}  neg={tneg}  ratio={tpos/ttotal if ttotal else 0:.4f}{trunc_note}')
         # Apply the same clamping behavior to both train and test inputs when truncation is enabled
-        train_ds = WindowDataset(X, Y, indices=train_idx, clip_max=args.trunc_temp)
-        test_ds = WindowDataset(X, Y, indices=test_idx, clip_max=args.trunc_temp)
+        train_ds = WindowDataset(X, Y, N, indices=train_idx, clip_max=args.trunc_temp)
+        test_ds = WindowDataset(X, Y, N, indices=test_idx, clip_max=args.trunc_temp)
         train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=False)
         test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
@@ -198,6 +207,10 @@ def main():
             d_conv=args.d_conv,
             expand=args.expand,
             d_out=1,  # predicting target_channel scalar trajectory
+            enable_physics=args.enable_physics_loss,
+            n_neighbors=len(neighbor_chs),
+            lambda_phys=args.lambda_phys,
+            dt=args.dt,
         ).to(device)
 
         crit = nn.L1Loss()
@@ -210,7 +223,8 @@ def main():
         best_rep = ''
 
         for ep in range(1, args.epochs + 1):
-            train_loss = train_one_epoch(model, train_loader, crit, opt, device)
+            target_idx = channels.index(args.target_channel) if args.target_channel in channels else None
+            train_loss = model.train_one_epoch(train_loader, opt, crit, target_idx)
             # Evaluate each epoch on the test set
             m_mae, sup0, sup1, cls_rep = evaluate(model, test_loader, device, threshold=args.threshold)
             improved = m_mae < best_mae

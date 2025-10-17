@@ -208,7 +208,8 @@ def build_window_samples(
     trunc_temp: Optional[float] = None,
     drop_after_fail: bool = True,
     stop_when_all_channels_reach_trunc: bool = False,
-) -> Tuple[List[List[List[float]]], List[List[float]], List[int]]:
+    future_channels: Tuple[str, ...] = (),
+) -> Tuple[List[List[List[float]]], List[List[float]], List[int], List[List[List[float]]]]:
     """
     Create sliding-window samples across experiments.
     Returns (X, Y, exp_ids):
@@ -223,6 +224,7 @@ def build_window_samples(
     X: List[List[List[float]]] = []
     Y: List[List[float]] = []
     E: List[int] = []
+    N: List[List[List[float]]] = []  # future neighbor/env sequences per sample [H, len(future_channels)]
 
     for exp, rec in series.items():
         T = len(rec['Time'])
@@ -286,11 +288,26 @@ def build_window_samples(
             yw: List[float] = []
             for j in range(end, end + horizon):
                 yw.append(rec[target_channel][j])
+            # collect future channels if requested
+            nw: List[List[float]] = []
+            if future_channels:
+                for j in range(end, end + horizon):
+                    rowf: List[float] = []
+                    for chf in future_channels:
+                        v = rec[chf][j]
+                        if trunc_temp is not None:
+                            v = min(v, trunc_temp)
+                        rowf.append(v)
+                    nw.append(rowf)
             X.append(xw)
             Y.append(yw)
             E.append(exp)
+            if future_channels:
+                N.append(nw)
+            else:
+                N.append([])
             i += stride
-    return X, Y, E
+    return X, Y, E, N
 
 
 __all__ = [

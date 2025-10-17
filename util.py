@@ -28,11 +28,13 @@ class WindowDataset(Dataset):
         self,
         X: Sequence[Sequence[Sequence[float]]],
         Y: Sequence[Sequence[float]],
+        N: Sequence[Sequence[Sequence[float]]] | None = None,
         indices: Sequence[int] | None = None,
         clip_max: float | None = None,
     ):
         self.X = X
         self.Y = Y
+        self.N = N
         self.indices = list(indices) if indices is not None else list(range(len(X)))
         self.clip_max = clip_max
 
@@ -45,7 +47,12 @@ class WindowDataset(Dataset):
         y = torch.tensor(self.Y[real_idx], dtype=torch.float32)
         if self.clip_max is not None:
             x = torch.clamp(x, max=float(self.clip_max))
-        return x, y
+        if self.N is not None and len(self.N) == len(self.X):
+            n = self.N[real_idx]
+            n = torch.tensor(n, dtype=torch.float32) if n else torch.empty((y.shape[0], 0), dtype=torch.float32)
+            return x, y, n
+        else:
+            return x, y
 
 
 def make_folds(exp_ids: List[int], n_splits: int = 5, seed: int = 42) -> List[List[int]]:
@@ -144,6 +151,12 @@ def add_main_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--enable_fp32_high_precision', action='store_true',
                         help='Enable torch.set_float32_matmul_precision("high"). Warn if request fails.')
+    # physics options
+    parser.add_argument('--enable_physics_loss', action='store_true', help='Enable physics-based regularization loss')
+    parser.add_argument('--lambda_phys', type=float, default=0.0, help='Weight for physics loss')
+    parser.add_argument('--dt', type=float, default=20.0, help='Time step (s) between samples')
+    parser.add_argument('--env_channel', type=str, default='HD2', help='Environment channel name (corridor)')
+    parser.add_argument('--neighbor_channels', type=str, default='HD3', help='Comma-separated neighbor channel names (e.g., room2)')
 
 
 __all__ = [

@@ -32,6 +32,11 @@ class MambaForecaster(nn.Module):
         d_state: int = 64,
         d_conv: int = 4,
         expand: int = 2,
+        # physics options
+        enable_physics: bool = False,
+        n_neighbors: int = 1,
+        lambda_phys: float = 0.0,
+        dt: float = 20.0,
     ):
         super().__init__()
         if Mamba is None:
@@ -62,6 +67,16 @@ class MambaForecaster(nn.Module):
             nn.GELU(),
             nn.Linear(d_model, horizon * d_out),
         )
+        # physics params
+        self.enable_physics = enable_physics
+        self.lambda_phys = float(lambda_phys)
+        self.dt = float(dt)
+        if enable_physics:
+            # Learnable positive parameters via softplus on raw
+            self.C_raw = nn.Parameter(torch.tensor(1.0))
+            self.U_nei_raw = nn.Parameter(torch.ones(n_neighbors) * 0.1)
+            self.U_corr_raw = nn.Parameter(torch.tensor(0.1))
+            self.softplus = nn.Softplus()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: [B, T, D_in]
@@ -73,6 +88,86 @@ class MambaForecaster(nn.Module):
         yhat = self.head(last)
         yhat = yhat.view(x.size(0), self.horizon, self.d_out)
         return yhat
+
+    def physics_loss(self, yhat: torch.Tensor, neighbors: torch.Tensor | None, env: torch.Tensor | None, last_hist_target: torch.Tensor | None = None) -> torch.Tensor:
+        """
+        Discrete-time physics residual:
+          C * dT/dt = sum_j U_rj * (T_nei_j - T_hat) + U_rc * (T_env - T_hat)
+        where dT/dt ≈ (T_hat[k] - T_prev[k]) / dt.
+        If last_hist_target is provided, it is used as T_prev for k=0; otherwise uses T_hat[k-1].
+
+        yhat: [B, H]  (assumes d_out=1 and squeezed)
+        neighbors: [B, H, Nn] or None
+        env: [B, H] or None
+        """
+        if not self.enable_physics or self.lambda_phys <= 0.0:
+            return torch.tensor(0.0, device=yhat.device)
+        sp = self.softplus
+        C = sp(self.C_raw)
+        U_nei = sp(self.U_nei_raw)  # [Nn]
+        U_corr = sp(self.U_corr_raw)
+
+        B, H = yhat.shape
+        # compute dT/dt
+        if H >= 2:
+            prev = torch.cat([yhat[:, :1], yhat[:, :-1]], dim=1)  # use previous predicted step for k>=1
+            if last_hist_target is not None:
+                prev[:, 0] = last_hist_target  # use history last target for k=0
+        else:  # H == 1
+            if last_hist_target is None:
+                return torch.tensor(0.0, device=yhat.device)
+            prev = last_hist_target.unsqueeze(1)
+        dT = (yhat - prev) / max(self.dt, 1e-6)
+
+        # flux from neighbors
+        flux_nei = 0.0
+        if neighbors is not None and neighbors.numel() > 0:
+            # neighbors: [B,H,Nn]
+            # sum over neighbors with weights U_nei
+            flux_nei = (U_nei.view(1, 1, -1) * (neighbors - yhat.unsqueeze(-1))).sum(dim=-1)  # [B,H]
+
+        flux_env = 0.0
+        if env is not None and env.numel() > 0:
+            flux_env = U_corr * (env - yhat)  # [B,H]
+
+        F = C * dT - (flux_nei + flux_env)  # [B,H]
+        return (F.pow(2).mean())
+
+    def train_one_epoch(self, train_loader, optimizer, crit_data, target_channel_index: int | None = None) -> float:
+        self.train()
+        total = 0.0
+        n = 0
+        for batch in train_loader:
+            if len(batch) == 3:
+                xb, yb, nb = batch
+            else:
+                xb, yb = batch
+                nb = None
+            xb = xb.to(next(self.parameters()).device)
+            yb = yb.to(next(self.parameters()).device)
+            optimizer.zero_grad()
+            yhat = self.forward(xb).squeeze(-1)
+            data_loss = crit_data(yhat, yb)
+            phys_loss = torch.tensor(0.0, device=yb.device)
+            if self.enable_physics and nb is not None:
+                # nb: [B,H,N_nei+1?] We'll assume last dim: neighbors first, last column env
+                # By convention in main we will pack neighbors first then env as last column
+                if nb.shape[-1] >= 1:
+                    neighbors = nb[:, :, :-1] if nb.shape[-1] > 1 else None
+                    env = nb[:, :, -1] if nb.shape[-1] >= 1 else None
+                else:
+                    neighbors, env = None, None
+                # last history target from xb at last time step and target channel index
+                last_hist_target = None
+                if target_channel_index is not None:
+                    last_hist_target = xb[:, -1, target_channel_index]
+                phys_loss = self.physics_loss(yhat, neighbors, env, last_hist_target)
+            loss = data_loss + self.lambda_phys * phys_loss
+            loss.backward()
+            optimizer.step()
+            total += loss.item() * xb.size(0)
+            n += xb.size(0)
+        return total / max(n, 1)
 
 
 __all__ = ['MambaForecaster']
