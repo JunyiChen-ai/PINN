@@ -1,4 +1,7 @@
 import argparse
+import random
+import logging
+from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
 
@@ -36,17 +39,17 @@ def train_one_epoch(model, loader, crit, opt, device) -> float:
             if not warned:
                 x_bad = (~torch.isfinite(xb)).sum().item()
                 y_bad = (~torch.isfinite(yb)).sum().item()
-                print(f'[WARN][train] Non-finite in batch inputs: X={x_bad} Y={y_bad} at step {step}')
+                logging.warning(f'Non-finite in batch inputs: X={x_bad} Y={y_bad} at step {step}')
                 warned = True
         yhat = model(xb).squeeze(-1)
         if not torch.isfinite(yhat).all():
             if not warned:
                 yh_bad = (~torch.isfinite(yhat)).sum().item()
-                print(f'[WARN][train] Non-finite in model outputs: Yhat={yh_bad} at step {step}')
+                logging.warning(f'Non-finite in model outputs: Yhat={yh_bad} at step {step}')
                 warned = True
         loss = crit(yhat, yb)
         if not torch.isfinite(loss):
-            print(f'[WARN][train] Non-finite loss at step {step}: {loss.item()}')
+            logging.warning(f'Non-finite loss at step {step}: {loss.item()}')
         loss.backward()
         opt.step()
         total += loss.item() * xb.size(0)
@@ -73,13 +76,13 @@ def evaluate(model, loader, device, threshold: float) -> Tuple[float, int, int, 
             if not warned:
                 x_bad = (~torch.isfinite(xb)).sum().item()
                 y_bad = (~torch.isfinite(yb)).sum().item()
-                print(f'[WARN][eval] Non-finite in batch inputs: X={x_bad} Y={y_bad} at step {step}')
+                logging.warning(f'Non-finite in eval batch inputs: X={x_bad} Y={y_bad} at step {step}')
                 warned = True
         yhat = model(xb).squeeze(-1)
         if not torch.isfinite(yhat).all():
             if not warned:
                 yh_bad = (~torch.isfinite(yhat)).sum().item()
-                print(f'[WARN][eval] Non-finite in model outputs: Yhat={yh_bad} at step {step}')
+                logging.warning(f'Non-finite in eval model outputs: Yhat={yh_bad} at step {step}')
                 warned = True
         maes.append(mae_metric(yhat, yb))
         # binary labels: any temp >= threshold in horizon (per sample)
@@ -129,6 +132,20 @@ def main():
 
     set_seed(args.seed)
     device = get_device()
+    # Setup logging to file Flashover/log/{model}_{dataset}_{timestamp}.log and to console
+    log_dir = Path('log')
+    log_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now().strftime('%Y%m%d-%H%M%S')
+    log_file = log_dir / f"{args.model}_{args.dataset}_{ts}.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s | %(levelname)s | %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler()
+        ]
+    )
+    logging.info(f"Logging to {log_file}")
     # Optionally enable FP32 high precision matmul; warn if not effective
     if args.enable_fp32_high_precision:
         try:
@@ -137,19 +154,16 @@ def main():
             torch.set_float32_matmul_precision("high")
             after = get_prec() if callable(get_prec) else None
             if after != 'high':
-                warnings.warn(
-                    f'Requested --enable_fp32_high_precision but precision is "{after}" (was "{before}").',
-                    RuntimeWarning,
+                logging.warning(
+                    f'Requested --enable_fp32_high_precision but precision is "{after}" (was "{before}").'
                 )
         except Exception as e:
-            warnings.warn(
-                f'Failed to enable FP32 high precision matmul: {e}',
-                RuntimeWarning,
-            )
+            logging.warning(f'Failed to enable FP32 high precision matmul: {e}')
 
     if args.dataset == 3:
         data_path = Path(args.data_path) if args.data_path else default_excel_path(Path.cwd())
         if not data_path or not Path(data_path).exists():
+            logging.error('Excel data file not found. Set --data_path or env FLASHOVER_XLSX.')
             raise FileNotFoundError('Excel data file not found. Set --data_path or env FLASHOVER_XLSX.')
         series = load_timeseries(str(data_path))
         channels = tuple([c.strip() for c in args.channels.split(',') if c.strip()])
@@ -211,6 +225,7 @@ def main():
         n_neighbors = 5  # all other rooms as neighbors
         d_in = 6
     if not X:
+        logging.error('No samples built. Try reducing --history/--horizon or disable truncation.')
         raise RuntimeError('No samples built. Try reducing --history/--horizon or disable truncation.')
 
     # Print dataset-level class distribution for current config
@@ -218,7 +233,7 @@ def main():
     pos = sum(1 for y in Y if (torch.tensor(y) >= args.threshold).any().item())
     neg = total - pos
     trunc_note = f" (trunc_temp={args.trunc_temp})" if args.trunc_temp is not None else ""
-    print(f'[Info] Dataset windows: total={total}  pos={pos}  neg={neg}  ratio={pos/total if total else 0:.4f}{trunc_note}')
+    logging.info(f'Dataset windows: total={total}  pos={pos}  neg={neg}  ratio={pos/total if total else 0:.4f}{trunc_note}')
 
     ds = WindowDataset(X, Y, N)
     folds = make_folds(E, n_splits=5, seed=args.seed)
@@ -234,10 +249,29 @@ def main():
         ttotal = len(tY)
         tpos = sum(1 for y in tY if (torch.tensor(y) >= args.threshold).any().item())
         tneg = ttotal - tpos
-        print(f'[Info][Fold {k+1}/5] test windows: total={ttotal}  pos={tpos}  neg={tneg}  ratio={tpos/ttotal if ttotal else 0:.4f}{trunc_note}')
+        logging.info(f'[Fold {k+1}/5] test windows: total={ttotal}  pos={tpos}  neg={tneg}  ratio={tpos/ttotal if ttotal else 0:.4f}{trunc_note}')
+        # Optional balancing of test set by downsampling to the minority count
+        balanced_test_idx = test_idx
+        if args.balance and ttotal > 0 and tpos > 0 and tneg > 0:
+            # Partition test indices by label
+            pos_ids = []
+            neg_ids = []
+            for idx in test_idx:
+                y = Y[idx]
+                is_pos = (torch.tensor(y) >= args.threshold).any().item()
+                (pos_ids if is_pos else neg_ids).append(idx)
+            m = min(len(pos_ids), len(neg_ids))
+            if m > 0:
+                rng = random.Random(args.seed + k)
+                rng.shuffle(pos_ids)
+                rng.shuffle(neg_ids)
+                balanced_test_idx = pos_ids[:m] + neg_ids[:m]
+                # Shuffle combined to avoid order bias
+                rng.shuffle(balanced_test_idx)
+                logging.info(f'[Fold {k+1}/5] balanced test windows: total={2*m}  pos={m}  neg={m}')
         # Apply the same clamping behavior to both train and test inputs when truncation is enabled
         train_ds = WindowDataset(X, Y, N, indices=train_idx, clip_max=args.trunc_temp)
-        test_ds = WindowDataset(X, Y, N, indices=test_idx, clip_max=args.trunc_temp)
+        test_ds = WindowDataset(X, Y, N, indices=balanced_test_idx, clip_max=args.trunc_temp)
         train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=False)
         test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
@@ -286,23 +320,23 @@ def main():
             if improved:
                 best_mae, best_sup0, best_sup1, best_ep, best_rep = m_mae, sup0, sup1, ep, cls_rep
             # Compact per-epoch log
-            print(f'[Fold {k+1}/5][Epoch {ep}/{args.epochs}] train L1: {train_loss:.4f}  val MAE: {m_mae:.4f}  Support: neg={sup0} pos={sup1}' + ('  [improved]' if improved else ''))
+            logging.info(f'[Fold {k+1}/5][Epoch {ep}/{args.epochs}] train L1: {train_loss:.4f}  val MAE: {m_mae:.4f}  Support: neg={sup0} pos={sup1}' + ('  [improved]' if improved else ''))
             if improved:
-                print(f'[Fold {k+1}/5][Epoch {ep}] Classification report (best so far):\n{cls_rep}')
+                logging.info(f'[Fold {k+1}/5][Epoch {ep}] Classification report (best so far):\n{cls_rep}')
 
         # Use best epoch within the fold as the fold result
         fold_mae.append(best_mae)
         total_support0 += best_sup0
         total_support1 += best_sup1
-        print(f'[Fold {k+1}/5] Best@Epoch {best_ep}: MAE={best_mae:.4f}  Support: neg={best_sup0}  pos={best_sup1}')
-        print(f'[Fold {k+1}/5] Best Classification report:\n{best_rep}')
+        logging.info(f'[Fold {k+1}/5] Best@Epoch {best_ep}: MAE={best_mae:.4f}  Support: neg={best_sup0}  pos={best_sup1}')
+        logging.info(f'[Fold {k+1}/5] Best Classification report:\n{best_rep}')
 
     def avg(xs: List[float]) -> float:
         return sum(xs) / max(len(xs), 1)
 
-    print('========== 5-fold CV Summary =========')
-    print(f'MAE:  mean={avg(fold_mae):.4f}  folds={[f"{v:.4f}" for v in fold_mae]}')
-    print(f'Support (total across folds): neg={total_support0}  pos={total_support1}')
+    logging.info('========== 5-fold CV Summary =========')
+    logging.info(f'MAE:  mean={avg(fold_mae):.4f}  folds={[f"{v:.4f}" for v in fold_mae]}')
+    logging.info(f'Support (total across folds): neg={total_support0}  pos={total_support1}')
 
 
 if __name__ == '__main__':

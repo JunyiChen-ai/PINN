@@ -164,6 +164,9 @@ def add_main_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--hidden_size', type=int, default=128)
     parser.add_argument('--rnn_layers', type=int, default=2)
     parser.add_argument('--dropout', type=float, default=0.0)
+    # evaluation options
+    parser.add_argument('--balance', action='store_true',
+                        help='If set, balance positive/negative samples in each test fold based on the minority count')
 
 
 __all__ = [

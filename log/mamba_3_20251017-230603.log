@@ -1,0 +1,405 @@
+2025-10-17 23:06:03,531 | INFO | Logging to log/mamba_3_20251017-230603.log
+2025-10-17 23:06:10,441 | INFO | Dataset windows: total=92894  pos=170  neg=92724  ratio=0.0018 (trunc_temp=160.0)
+2025-10-17 23:06:10,511 | INFO | [Fold 1/5] test windows: total=17855  pos=40  neg=17815  ratio=0.0022 (trunc_temp=160.0)
+2025-10-17 23:06:14,489 | INFO | [Fold 1/5][Epoch 1/10] train L1: 54.9424  val MAE: 7.0807  Support: neg=17815 pos=40  [improved]
+2025-10-17 23:06:14,489 | INFO | [Fold 1/5][Epoch 1] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9978    1.0000    0.9989     17815
+         pos     0.0000    0.0000    0.0000        40
+
+    accuracy                         0.9978     17855
+   macro avg     0.4989    0.5000    0.4994     17855
+weighted avg     0.9955    0.9978    0.9966     17855
+
+2025-10-17 23:06:18,009 | INFO | [Fold 1/5][Epoch 2/10] train L1: 4.5242  val MAE: 4.9962  Support: neg=17815 pos=40  [improved]
+2025-10-17 23:06:18,009 | INFO | [Fold 1/5][Epoch 2] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9978    1.0000    0.9989     17815
+         pos     0.0000    0.0000    0.0000        40
+
+    accuracy                         0.9978     17855
+   macro avg     0.4989    0.5000    0.4994     17855
+weighted avg     0.9955    0.9978    0.9966     17855
+
+2025-10-17 23:06:21,529 | INFO | [Fold 1/5][Epoch 3/10] train L1: 2.9319  val MAE: 2.8644  Support: neg=17815 pos=40  [improved]
+2025-10-17 23:06:21,529 | INFO | [Fold 1/5][Epoch 3] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9978    1.0000    0.9989     17815
+         pos     0.0000    0.0000    0.0000        40
+
+    accuracy                         0.9978     17855
+   macro avg     0.4989    0.5000    0.4994     17855
+weighted avg     0.9955    0.9978    0.9966     17855
+
+2025-10-17 23:06:25,074 | INFO | [Fold 1/5][Epoch 4/10] train L1: 2.6029  val MAE: 2.5644  Support: neg=17815 pos=40  [improved]
+2025-10-17 23:06:25,074 | INFO | [Fold 1/5][Epoch 4] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9978    1.0000    0.9989     17815
+         pos     0.0000    0.0000    0.0000        40
+
+    accuracy                         0.9978     17855
+   macro avg     0.4989    0.5000    0.4994     17855
+weighted avg     0.9955    0.9978    0.9966     17855
+
+2025-10-17 23:06:28,707 | INFO | [Fold 1/5][Epoch 5/10] train L1: 2.4127  val MAE: 2.1249  Support: neg=17815 pos=40  [improved]
+2025-10-17 23:06:28,707 | INFO | [Fold 1/5][Epoch 5] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9978    1.0000    0.9989     17815
+         pos     0.0000    0.0000    0.0000        40
+
+    accuracy                         0.9978     17855
+   macro avg     0.4989    0.5000    0.4994     17855
+weighted avg     0.9955    0.9978    0.9966     17855
+
+2025-10-17 23:06:32,236 | INFO | [Fold 1/5][Epoch 6/10] train L1: 2.3468  val MAE: 2.1876  Support: neg=17815 pos=40
+2025-10-17 23:06:35,755 | INFO | [Fold 1/5][Epoch 7/10] train L1: 2.3103  val MAE: 1.7657  Support: neg=17815 pos=40  [improved]
+2025-10-17 23:06:35,755 | INFO | [Fold 1/5][Epoch 7] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9985    1.0000    0.9992     17815
+         pos     1.0000    0.3250    0.4906        40
+
+    accuracy                         0.9985     17855
+   macro avg     0.9992    0.6625    0.7449     17855
+weighted avg     0.9985    0.9985    0.9981     17855
+
+2025-10-17 23:06:39,347 | INFO | [Fold 1/5][Epoch 8/10] train L1: 2.0682  val MAE: 2.0172  Support: neg=17815 pos=40
+2025-10-17 23:06:42,981 | INFO | [Fold 1/5][Epoch 9/10] train L1: 2.0958  val MAE: 2.3747  Support: neg=17815 pos=40
+2025-10-17 23:06:46,557 | INFO | [Fold 1/5][Epoch 10/10] train L1: 2.0280  val MAE: 1.8777  Support: neg=17815 pos=40
+2025-10-17 23:06:46,557 | INFO | [Fold 1/5] Best@Epoch 7: MAE=1.7657  Support: neg=17815  pos=40
+2025-10-17 23:06:46,557 | INFO | [Fold 1/5] Best Classification report:
+              precision    recall  f1-score   support
+
+         neg     0.9985    1.0000    0.9992     17815
+         pos     1.0000    0.3250    0.4906        40
+
+    accuracy                         0.9985     17855
+   macro avg     0.9992    0.6625    0.7449     17855
+weighted avg     0.9985    0.9985    0.9981     17855
+
+2025-10-17 23:06:46,622 | INFO | [Fold 2/5] test windows: total=17037  pos=45  neg=16992  ratio=0.0026 (trunc_temp=160.0)
+2025-10-17 23:06:50,206 | INFO | [Fold 2/5][Epoch 1/10] train L1: 54.7761  val MAE: 8.3835  Support: neg=16992 pos=45  [improved]
+2025-10-17 23:06:50,206 | INFO | [Fold 2/5][Epoch 1] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9974    1.0000    0.9987     16992
+         pos     0.0000    0.0000    0.0000        45
+
+    accuracy                         0.9974     17037
+   macro avg     0.4987    0.5000    0.4993     17037
+weighted avg     0.9947    0.9974    0.9960     17037
+
+2025-10-17 23:06:53,760 | INFO | [Fold 2/5][Epoch 2/10] train L1: 4.7846  val MAE: 3.2494  Support: neg=16992 pos=45  [improved]
+2025-10-17 23:06:53,760 | INFO | [Fold 2/5][Epoch 2] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9974    1.0000    0.9987     16992
+         pos     0.0000    0.0000    0.0000        45
+
+    accuracy                         0.9974     17037
+   macro avg     0.4987    0.5000    0.4993     17037
+weighted avg     0.9947    0.9974    0.9960     17037
+
+2025-10-17 23:06:57,425 | INFO | [Fold 2/5][Epoch 3/10] train L1: 3.1232  val MAE: 4.7015  Support: neg=16992 pos=45
+2025-10-17 23:07:01,156 | INFO | [Fold 2/5][Epoch 4/10] train L1: 2.8123  val MAE: 2.6832  Support: neg=16992 pos=45  [improved]
+2025-10-17 23:07:01,156 | INFO | [Fold 2/5][Epoch 4] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9974    1.0000    0.9987     16992
+         pos     0.0000    0.0000    0.0000        45
+
+    accuracy                         0.9974     17037
+   macro avg     0.4987    0.5000    0.4993     17037
+weighted avg     0.9947    0.9974    0.9960     17037
+
+2025-10-17 23:07:04,829 | INFO | [Fold 2/5][Epoch 5/10] train L1: 2.5792  val MAE: 3.1239  Support: neg=16992 pos=45
+2025-10-17 23:07:08,575 | INFO | [Fold 2/5][Epoch 6/10] train L1: 2.3629  val MAE: 2.1842  Support: neg=16992 pos=45  [improved]
+2025-10-17 23:07:08,575 | INFO | [Fold 2/5][Epoch 6] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9974    1.0000    0.9987     16992
+         pos     0.0000    0.0000    0.0000        45
+
+    accuracy                         0.9974     17037
+   macro avg     0.4987    0.5000    0.4993     17037
+weighted avg     0.9947    0.9974    0.9960     17037
+
+2025-10-17 23:07:12,195 | INFO | [Fold 2/5][Epoch 7/10] train L1: 2.2949  val MAE: 2.4342  Support: neg=16992 pos=45
+2025-10-17 23:07:15,937 | INFO | [Fold 2/5][Epoch 8/10] train L1: 2.2734  val MAE: 1.6646  Support: neg=16992 pos=45  [improved]
+2025-10-17 23:07:15,937 | INFO | [Fold 2/5][Epoch 8] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9988    0.9999    0.9994     16992
+         pos     0.9259    0.5556    0.6944        45
+
+    accuracy                         0.9987     17037
+   macro avg     0.9624    0.7777    0.8469     17037
+weighted avg     0.9986    0.9987    0.9985     17037
+
+2025-10-17 23:07:19,677 | INFO | [Fold 2/5][Epoch 9/10] train L1: 2.0729  val MAE: 1.8363  Support: neg=16992 pos=45
+2025-10-17 23:07:23,406 | INFO | [Fold 2/5][Epoch 10/10] train L1: 2.0558  val MAE: 2.0669  Support: neg=16992 pos=45
+2025-10-17 23:07:23,406 | INFO | [Fold 2/5] Best@Epoch 8: MAE=1.6646  Support: neg=16992  pos=45
+2025-10-17 23:07:23,406 | INFO | [Fold 2/5] Best Classification report:
+              precision    recall  f1-score   support
+
+         neg     0.9988    0.9999    0.9994     16992
+         pos     0.9259    0.5556    0.6944        45
+
+    accuracy                         0.9987     17037
+   macro avg     0.9624    0.7777    0.8469     17037
+weighted avg     0.9986    0.9987    0.9985     17037
+
+2025-10-17 23:07:23,476 | INFO | [Fold 3/5] test windows: total=18229  pos=25  neg=18204  ratio=0.0014 (trunc_temp=160.0)
+2025-10-17 23:07:27,184 | INFO | [Fold 3/5][Epoch 1/10] train L1: 57.3425  val MAE: 7.6133  Support: neg=18204 pos=25  [improved]
+2025-10-17 23:07:27,184 | INFO | [Fold 3/5][Epoch 1] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9986    1.0000    0.9993     18204
+         pos     0.0000    0.0000    0.0000        25
+
+    accuracy                         0.9986     18229
+   macro avg     0.4993    0.5000    0.4997     18229
+weighted avg     0.9973    0.9986    0.9979     18229
+
+2025-10-17 23:07:30,889 | INFO | [Fold 3/5][Epoch 2/10] train L1: 5.0982  val MAE: 5.0516  Support: neg=18204 pos=25  [improved]
+2025-10-17 23:07:30,889 | INFO | [Fold 3/5][Epoch 2] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9986    1.0000    0.9993     18204
+         pos     0.0000    0.0000    0.0000        25
+
+    accuracy                         0.9986     18229
+   macro avg     0.4993    0.5000    0.4997     18229
+weighted avg     0.9973    0.9986    0.9979     18229
+
+2025-10-17 23:07:34,587 | INFO | [Fold 3/5][Epoch 3/10] train L1: 2.9719  val MAE: 2.7039  Support: neg=18204 pos=25  [improved]
+2025-10-17 23:07:34,587 | INFO | [Fold 3/5][Epoch 3] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9986    1.0000    0.9993     18204
+         pos     0.0000    0.0000    0.0000        25
+
+    accuracy                         0.9986     18229
+   macro avg     0.4993    0.5000    0.4997     18229
+weighted avg     0.9973    0.9986    0.9979     18229
+
+2025-10-17 23:07:38,296 | INFO | [Fold 3/5][Epoch 4/10] train L1: 2.7369  val MAE: 2.4501  Support: neg=18204 pos=25  [improved]
+2025-10-17 23:07:38,296 | INFO | [Fold 3/5][Epoch 4] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9986    1.0000    0.9993     18204
+         pos     0.0000    0.0000    0.0000        25
+
+    accuracy                         0.9986     18229
+   macro avg     0.4993    0.5000    0.4997     18229
+weighted avg     0.9973    0.9986    0.9979     18229
+
+2025-10-17 23:07:41,998 | INFO | [Fold 3/5][Epoch 5/10] train L1: 2.6422  val MAE: 1.9003  Support: neg=18204 pos=25  [improved]
+2025-10-17 23:07:41,998 | INFO | [Fold 3/5][Epoch 5] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9986    1.0000    0.9993     18204
+         pos     0.0000    0.0000    0.0000        25
+
+    accuracy                         0.9986     18229
+   macro avg     0.4993    0.5000    0.4997     18229
+weighted avg     0.9973    0.9986    0.9979     18229
+
+2025-10-17 23:07:45,520 | INFO | [Fold 3/5][Epoch 6/10] train L1: 2.4145  val MAE: 2.3058  Support: neg=18204 pos=25
+2025-10-17 23:07:49,029 | INFO | [Fold 3/5][Epoch 7/10] train L1: 2.3803  val MAE: 2.7224  Support: neg=18204 pos=25
+2025-10-17 23:07:52,569 | INFO | [Fold 3/5][Epoch 8/10] train L1: 2.2739  val MAE: 2.6024  Support: neg=18204 pos=25
+2025-10-17 23:07:56,150 | INFO | [Fold 3/5][Epoch 9/10] train L1: 2.1839  val MAE: 2.7949  Support: neg=18204 pos=25
+2025-10-17 23:07:59,742 | INFO | [Fold 3/5][Epoch 10/10] train L1: 2.1160  val MAE: 2.0225  Support: neg=18204 pos=25
+2025-10-17 23:07:59,742 | INFO | [Fold 3/5] Best@Epoch 5: MAE=1.9003  Support: neg=18204  pos=25
+2025-10-17 23:07:59,742 | INFO | [Fold 3/5] Best Classification report:
+              precision    recall  f1-score   support
+
+         neg     0.9986    1.0000    0.9993     18204
+         pos     0.0000    0.0000    0.0000        25
+
+    accuracy                         0.9986     18229
+   macro avg     0.4993    0.5000    0.4997     18229
+weighted avg     0.9973    0.9986    0.9979     18229
+
+2025-10-17 23:07:59,824 | INFO | [Fold 4/5] test windows: total=21432  pos=28  neg=21404  ratio=0.0013 (trunc_temp=160.0)
+2025-10-17 23:08:03,291 | INFO | [Fold 4/5][Epoch 1/10] train L1: 55.5138  val MAE: 6.1740  Support: neg=21404 pos=28  [improved]
+2025-10-17 23:08:03,291 | INFO | [Fold 4/5][Epoch 1] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9987    1.0000    0.9993     21404
+         pos     0.0000    0.0000    0.0000        28
+
+    accuracy                         0.9987     21432
+   macro avg     0.4993    0.5000    0.4997     21432
+weighted avg     0.9974    0.9987    0.9980     21432
+
+2025-10-17 23:08:06,918 | INFO | [Fold 4/5][Epoch 2/10] train L1: 4.9746  val MAE: 3.3630  Support: neg=21404 pos=28  [improved]
+2025-10-17 23:08:06,918 | INFO | [Fold 4/5][Epoch 2] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9987    1.0000    0.9993     21404
+         pos     0.0000    0.0000    0.0000        28
+
+    accuracy                         0.9987     21432
+   macro avg     0.4993    0.5000    0.4997     21432
+weighted avg     0.9974    0.9987    0.9980     21432
+
+2025-10-17 23:08:10,502 | INFO | [Fold 4/5][Epoch 3/10] train L1: 3.1152  val MAE: 3.0384  Support: neg=21404 pos=28  [improved]
+2025-10-17 23:08:10,502 | INFO | [Fold 4/5][Epoch 3] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9987    1.0000    0.9993     21404
+         pos     0.0000    0.0000    0.0000        28
+
+    accuracy                         0.9987     21432
+   macro avg     0.4993    0.5000    0.4997     21432
+weighted avg     0.9974    0.9987    0.9980     21432
+
+2025-10-17 23:08:13,945 | INFO | [Fold 4/5][Epoch 4/10] train L1: 2.5565  val MAE: 3.1483  Support: neg=21404 pos=28
+2025-10-17 23:08:17,388 | INFO | [Fold 4/5][Epoch 5/10] train L1: 2.2745  val MAE: 2.5081  Support: neg=21404 pos=28  [improved]
+2025-10-17 23:08:17,388 | INFO | [Fold 4/5][Epoch 5] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9987    1.0000    0.9993     21404
+         pos     0.0000    0.0000    0.0000        28
+
+    accuracy                         0.9987     21432
+   macro avg     0.4993    0.5000    0.4997     21432
+weighted avg     0.9974    0.9987    0.9980     21432
+
+2025-10-17 23:08:20,830 | INFO | [Fold 4/5][Epoch 6/10] train L1: 2.1807  val MAE: 2.2097  Support: neg=21404 pos=28  [improved]
+2025-10-17 23:08:20,830 | INFO | [Fold 4/5][Epoch 6] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9995    0.9999    0.9997     21404
+         pos     0.8947    0.6071    0.7234        28
+
+    accuracy                         0.9994     21432
+   macro avg     0.9471    0.8035    0.8616     21432
+weighted avg     0.9993    0.9994    0.9993     21432
+
+2025-10-17 23:08:24,310 | INFO | [Fold 4/5][Epoch 7/10] train L1: 2.0883  val MAE: 2.0164  Support: neg=21404 pos=28  [improved]
+2025-10-17 23:08:24,310 | INFO | [Fold 4/5][Epoch 7] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9998    0.9998    0.9998     21404
+         pos     0.8214    0.8214    0.8214        28
+
+    accuracy                         0.9995     21432
+   macro avg     0.9106    0.9106    0.9106     21432
+weighted avg     0.9995    0.9995    0.9995     21432
+
+2025-10-17 23:08:27,928 | INFO | [Fold 4/5][Epoch 8/10] train L1: 2.0534  val MAE: 1.5746  Support: neg=21404 pos=28  [improved]
+2025-10-17 23:08:27,928 | INFO | [Fold 4/5][Epoch 8] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9999    0.9997    0.9998     21404
+         pos     0.8125    0.9286    0.8667        28
+
+    accuracy                         0.9996     21432
+   macro avg     0.9062    0.9641    0.9332     21432
+weighted avg     0.9997    0.9996    0.9996     21432
+
+2025-10-17 23:08:31,541 | INFO | [Fold 4/5][Epoch 9/10] train L1: 1.9483  val MAE: 1.7316  Support: neg=21404 pos=28
+2025-10-17 23:08:35,185 | INFO | [Fold 4/5][Epoch 10/10] train L1: 1.9257  val MAE: 1.5665  Support: neg=21404 pos=28  [improved]
+2025-10-17 23:08:35,185 | INFO | [Fold 4/5][Epoch 10] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     1.0000    0.9997    0.9998     21404
+         pos     0.7941    0.9643    0.8710        28
+
+    accuracy                         0.9996     21432
+   macro avg     0.8970    0.9820    0.9354     21432
+weighted avg     0.9997    0.9996    0.9996     21432
+
+2025-10-17 23:08:35,185 | INFO | [Fold 4/5] Best@Epoch 10: MAE=1.5665  Support: neg=21404  pos=28
+2025-10-17 23:08:35,185 | INFO | [Fold 4/5] Best Classification report:
+              precision    recall  f1-score   support
+
+         neg     1.0000    0.9997    0.9998     21404
+         pos     0.7941    0.9643    0.8710        28
+
+    accuracy                         0.9996     21432
+   macro avg     0.8970    0.9820    0.9354     21432
+weighted avg     0.9997    0.9996    0.9996     21432
+
+2025-10-17 23:08:35,256 | INFO | [Fold 5/5] test windows: total=18341  pos=32  neg=18309  ratio=0.0017 (trunc_temp=160.0)
+2025-10-17 23:08:38,786 | INFO | [Fold 5/5][Epoch 1/10] train L1: 57.7006  val MAE: 8.5521  Support: neg=18309 pos=32  [improved]
+2025-10-17 23:08:38,786 | INFO | [Fold 5/5][Epoch 1] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9983    1.0000    0.9991     18309
+         pos     0.0000    0.0000    0.0000        32
+
+    accuracy                         0.9983     18341
+   macro avg     0.4991    0.5000    0.4996     18341
+weighted avg     0.9965    0.9983    0.9974     18341
+
+2025-10-17 23:08:42,299 | INFO | [Fold 5/5][Epoch 2/10] train L1: 5.4021  val MAE: 3.7109  Support: neg=18309 pos=32  [improved]
+2025-10-17 23:08:42,300 | INFO | [Fold 5/5][Epoch 2] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9983    1.0000    0.9991     18309
+         pos     0.0000    0.0000    0.0000        32
+
+    accuracy                         0.9983     18341
+   macro avg     0.4991    0.5000    0.4996     18341
+weighted avg     0.9965    0.9983    0.9974     18341
+
+2025-10-17 23:08:45,808 | INFO | [Fold 5/5][Epoch 3/10] train L1: 3.1740  val MAE: 4.3917  Support: neg=18309 pos=32
+2025-10-17 23:08:49,320 | INFO | [Fold 5/5][Epoch 4/10] train L1: 2.8094  val MAE: 2.2757  Support: neg=18309 pos=32  [improved]
+2025-10-17 23:08:49,320 | INFO | [Fold 5/5][Epoch 4] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9983    1.0000    0.9991     18309
+         pos     0.0000    0.0000    0.0000        32
+
+    accuracy                         0.9983     18341
+   macro avg     0.4991    0.5000    0.4996     18341
+weighted avg     0.9965    0.9983    0.9974     18341
+
+2025-10-17 23:08:52,827 | INFO | [Fold 5/5][Epoch 5/10] train L1: 2.3829  val MAE: 2.0891  Support: neg=18309 pos=32  [improved]
+2025-10-17 23:08:52,828 | INFO | [Fold 5/5][Epoch 5] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9983    1.0000    0.9991     18309
+         pos     0.0000    0.0000    0.0000        32
+
+    accuracy                         0.9983     18341
+   macro avg     0.4991    0.5000    0.4996     18341
+weighted avg     0.9965    0.9983    0.9974     18341
+
+2025-10-17 23:08:56,333 | INFO | [Fold 5/5][Epoch 6/10] train L1: 2.2759  val MAE: 2.1186  Support: neg=18309 pos=32
+2025-10-17 23:09:00,011 | INFO | [Fold 5/5][Epoch 7/10] train L1: 2.2556  val MAE: 1.8741  Support: neg=18309 pos=32  [improved]
+2025-10-17 23:09:00,011 | INFO | [Fold 5/5][Epoch 7] Classification report (best so far):
+              precision    recall  f1-score   support
+
+         neg     0.9990    1.0000    0.9995     18309
+         pos     1.0000    0.4375    0.6087        32
+
+    accuracy                         0.9990     18341
+   macro avg     0.9995    0.7188    0.8041     18341
+weighted avg     0.9990    0.9990    0.9988     18341
+
+2025-10-17 23:09:03,719 | INFO | [Fold 5/5][Epoch 8/10] train L1: 2.1355  val MAE: 2.1220  Support: neg=18309 pos=32
+2025-10-17 23:09:07,415 | INFO | [Fold 5/5][Epoch 9/10] train L1: 2.0377  val MAE: 3.4536  Support: neg=18309 pos=32
+2025-10-17 23:09:11,123 | INFO | [Fold 5/5][Epoch 10/10] train L1: 1.9766  val MAE: 1.9176  Support: neg=18309 pos=32
+2025-10-17 23:09:11,123 | INFO | [Fold 5/5] Best@Epoch 7: MAE=1.8741  Support: neg=18309  pos=32
+2025-10-17 23:09:11,123 | INFO | [Fold 5/5] Best Classification report:
+              precision    recall  f1-score   support
+
+         neg     0.9990    1.0000    0.9995     18309
+         pos     1.0000    0.4375    0.6087        32
+
+    accuracy                         0.9990     18341
+   macro avg     0.9995    0.7188    0.8041     18341
+weighted avg     0.9990    0.9990    0.9988     18341
+
+2025-10-17 23:09:11,123 | INFO | ========== 5-fold CV Summary =========
+2025-10-17 23:09:11,123 | INFO | MAE:  mean=1.7543  folds=['1.7657', '1.6646', '1.9003', '1.5665', '1.8741']
+2025-10-17 23:09:11,123 | INFO | Support (total across folds): neg=92724  pos=170
