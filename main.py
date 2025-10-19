@@ -370,16 +370,38 @@ def main():
             ).to(device)
         else:
             rnn_type, bidir, use_attn = resolve_baseline_from_name(args.model)
-            model = BaselineForecaster(
-                d_in=d_in,
-                horizon=args.horizon,
-                rnn_type=rnn_type,
-                hidden_size=args.hidden_size,
-                num_layers=args.rnn_layers,
-                bidirectional=bidir,
-                use_attention=use_attn,
-                dropout=args.dropout,
-            ).to(device)
+            if rnn_type is None and args.model.lower() in ('gflashnet', 'gflash'):
+                from baseline import GFlashNetForecaster
+                model = GFlashNetForecaster(
+                    d_in=d_in,
+                    horizon=args.horizon,
+                    c_hidden=args.hidden_size,
+                    kernel_size=3,
+                    heads=2,
+                ).to(device)
+            elif rnn_type == 'cnn_lstm':
+                from baseline import CNNLSTMForecaster
+                model = CNNLSTMForecaster(
+                    d_in=d_in,
+                    horizon=args.horizon,
+                    hidden_size=args.hidden_size,
+                    rnn_layers=args.rnn_layers,
+                    kernel_size=3,
+                    dilation=1,
+                    bidirectional=False,
+                    dropout=args.dropout,
+                ).to(device)
+            else:
+                model = BaselineForecaster(
+                    d_in=d_in,
+                    horizon=args.horizon,
+                    rnn_type=rnn_type,
+                    hidden_size=args.hidden_size,
+                    num_layers=args.rnn_layers,
+                    bidirectional=bidir,
+                    use_attention=use_attn,
+                    dropout=args.dropout,
+                ).to(device)
 
         crit = nn.L1Loss()
         opt = torch.optim.Adam(model.parameters(), lr=args.lr)
