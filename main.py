@@ -165,61 +165,121 @@ def main():
         if not data_path or not Path(data_path).exists():
             logging.error('Excel data file not found. Set --data_path or env FLASHOVER_XLSX.')
             raise FileNotFoundError('Excel data file not found. Set --data_path or env FLASHOVER_XLSX.')
-        series = load_timeseries(str(data_path))
         channels = tuple([c.strip() for c in args.channels.split(',') if c.strip()])
         neighbor_chs = tuple([c.strip() for c in args.neighbor_channels.split(',') if c.strip()])
         env_ch = args.env_channel.strip() if args.env_channel else None
         future_chs = tuple([*neighbor_chs, *( [env_ch] if env_ch else [] )])
-        X, Y, E, N = build_window_samples(
-            series=series,
-            history=args.history,
-            horizon=args.horizon,
-            stride=args.stride,
-            use_channels=channels,
-            target_channel=args.target_channel,
-            trunc_temp=args.trunc_temp,
-            drop_after_fail=False,
-            stop_when_all_channels_reach_trunc=True if args.trunc_temp is not None else False,
-            future_channels=future_chs,
-        )
+        # caching under three-compartments folder
+        cache_dir = data_path.parent
+        cache_name = (
+            f"cache_h{args.history}_H{args.horizon}_s{args.stride}_t{args.trunc_temp if args.trunc_temp is not None else 'None'}_"
+            f"chs{','.join(channels)}_tgt{args.target_channel}_nei{','.join(neighbor_chs)}_env{env_ch if env_ch else 'None'}_"
+            f"tb{int(bool(args.train_balance))}_te{int(bool(args.test_balance))}.pt"
+        ).replace(' ', '')
+        cache_path = cache_dir / cache_name
+        if cache_path.exists() and not args.rebuild_cache:
+            logging.info(f'Loading cached samples: {cache_path}')
+            import torch as _torch
+            cached = _torch.load(cache_path)
+            X, Y, E, N = cached['X'], cached['Y'], cached['E'], cached['N']
+            meta = cached.get('meta', {})
+            if meta:
+                logging.info(f"Loaded cache meta: {meta}")
+        else:
+            series = load_timeseries(str(data_path))
+            X, Y, E, N = build_window_samples(
+                series=series,
+                history=args.history,
+                horizon=args.horizon,
+                stride=args.stride,
+                use_channels=channels,
+                target_channel=args.target_channel,
+                trunc_temp=args.trunc_temp,
+                drop_after_fail=False,
+                stop_when_all_channels_reach_trunc=True if args.trunc_temp is not None else False,
+                future_channels=future_chs,
+            )
+            try:
+                import torch as _torch
+                _torch.save({'X': X, 'Y': Y, 'E': E, 'N': N,
+                             'meta': {
+                                 'dataset': 3,
+                                 'history': args.history,
+                                 'horizon': args.horizon,
+                                 'stride': args.stride,
+                                 'trunc_temp': args.trunc_temp,
+                                 'channels': list(channels),
+                                 'target_channel': args.target_channel,
+                                 'neighbors': list(neighbor_chs),
+                                 'env': env_ch,
+                                 'train_balance': bool(args.train_balance),
+                                 'test_balance': bool(args.test_balance),
+                             }}, cache_path)
+                logging.info(f'Saved samples cache to {cache_path}')
+            except Exception as e:
+                logging.warning(f'Failed to save cache: {e}')
         auto_target_idx = channels.index(args.target_channel) if args.target_channel in channels else None
         n_neighbors = len(neighbor_chs)
         d_in = len(channels)
     else:
-        # six-compartment dataset: auto target/neighbors per experiment, env left empty
+        # six-compartment dataset: auto target/neighbors per experiment, env left empty, with caching
         from preprocess import load_six_series, build_window_samples_dynamic
         six_root = Path('DataForFlashover/six-compartments')
-        series, exp_to_room, room_to_hd = load_six_series(str(Path.cwd()/six_root))
-        # Build mapping exp->target HD, neighbors (default: all others)
-        exp_to_target: dict[int, str] = {}
-        exp_to_neighbors: dict[int, list[str]] = {}
-        for exp, room_num in exp_to_room.items():
-            # Map numeric to room name if possible via AllData mapping in room_to_hd keys
-            # room_to_hd has names like 'Dining Room', 'Kitchen', etc. Numeric mapping isn't provided programmatically here,
-            # so we heuristically map: find HD whose compartment matches fire room name if present in AllData Experiments.
-            # For this loader, Range files already include HD columns, so we choose target by which HD corresponds to the named room.
-            # If numeric label can't be mapped, fall back to HD1.
-            # Numeric codes per AllData text: 1 Dining Room, 2 Kitchen, 4 Living Room, 5 Bedroom 1, 7 Bedroom 2, 8 Bedroom 3
-            code_to_name = {'1':'Dining Room','2':'Kitchen','4':'Living Room','5':'Bedroom 1','7':'Bedroom 2','8':'Bedroom 3'}
-            name = code_to_name.get(room_num, None)
-            if name and name in room_to_hd:
-                tgt = room_to_hd[name]
-            else:
-                tgt = 'HD1'
-            exp_to_target[exp] = tgt
-            # neighbors: all other HDs
-            all_hds = ['HD1','HD2','HD3','HD4','HD5','HD6']
-            exp_to_neighbors[exp] = [h for h in all_hds if h != tgt]
-        X, Y, E, N = build_window_samples_dynamic(
-            series=series,
-            exp_to_target_hd=exp_to_target,
-            exp_to_neighbors=exp_to_neighbors,
-            history=args.history,
-            horizon=args.horizon,
-            stride=args.stride,
-            trunc_temp=args.trunc_temp,
-            stop_when_all_channels_reach_trunc=True if args.trunc_temp is not None else False,
+        six_root_abs = Path.cwd() / six_root
+        cache_dir = six_root_abs
+        cache_name = (
+            f"cache6_h{args.history}_H{args.horizon}_s{args.stride}_t{args.trunc_temp if args.trunc_temp is not None else 'None'}_"
+            f"tb{int(bool(args.train_balance))}_te{int(bool(args.test_balance))}.pt"
         )
+        cache_path = cache_dir / cache_name
+        if cache_path.exists() and not args.rebuild_cache:
+            logging.info(f'Loading cached samples (six): {cache_path}')
+            import torch as _torch
+            cached = _torch.load(cache_path)
+            X, Y, E, N = cached['X'], cached['Y'], cached['E'], cached['N']
+            meta = cached.get('meta', {})
+            if meta:
+                logging.info(f"Loaded cache meta (six): {meta}")
+        else:
+            series, exp_to_room, room_to_hd = load_six_series(str(six_root_abs))
+            # Build mapping exp->target HD, neighbors (default: all others)
+            exp_to_target: dict[int, str] = {}
+            exp_to_neighbors: dict[int, list[str]] = {}
+            for exp, room_num in exp_to_room.items():
+                code_to_name = {'1':'Dining Room','2':'Kitchen','4':'Living Room','5':'Bedroom 1','7':'Bedroom 2','8':'Bedroom 3'}
+                name = code_to_name.get(room_num, None)
+                if name and name in room_to_hd:
+                    tgt = room_to_hd[name]
+                else:
+                    tgt = 'HD1'
+                exp_to_target[exp] = tgt
+                all_hds = ['HD1','HD2','HD3','HD4','HD5','HD6']
+                exp_to_neighbors[exp] = [h for h in all_hds if h != tgt]
+            X, Y, E, N = build_window_samples_dynamic(
+                series=series,
+                exp_to_target_hd=exp_to_target,
+                exp_to_neighbors=exp_to_neighbors,
+                history=args.history,
+                horizon=args.horizon,
+                stride=args.stride,
+                trunc_temp=args.trunc_temp,
+                stop_when_all_channels_reach_trunc=True if args.trunc_temp is not None else False,
+            )
+            try:
+                import torch as _torch
+                _torch.save({'X': X, 'Y': Y, 'E': E, 'N': N,
+                             'meta': {
+                                 'dataset': 6,
+                                 'history': args.history,
+                                 'horizon': args.horizon,
+                                 'stride': args.stride,
+                                 'trunc_temp': args.trunc_temp,
+                                 'train_balance': bool(args.train_balance),
+                                 'test_balance': bool(args.test_balance),
+                             }}, cache_path)
+                logging.info(f'Saved samples cache (six) to {cache_path}')
+            except Exception as e:
+                logging.warning(f'Failed to save cache (six): {e}')
         channels = tuple()  # not used for six in dynamic mode
         auto_target_idx = None
         n_neighbors = 5  # all other rooms as neighbors
@@ -252,7 +312,7 @@ def main():
         logging.info(f'[Fold {k+1}/5] test windows: total={ttotal}  pos={tpos}  neg={tneg}  ratio={tpos/ttotal if ttotal else 0:.4f}{trunc_note}')
         # Optional balancing of test set by downsampling to the minority count
         balanced_test_idx = test_idx
-        if args.balance and ttotal > 0 and tpos > 0 and tneg > 0:
+        if args.test_balance and ttotal > 0 and tpos > 0 and tneg > 0:
             # Partition test indices by label
             pos_ids = []
             neg_ids = []
@@ -269,8 +329,26 @@ def main():
                 # Shuffle combined to avoid order bias
                 rng.shuffle(balanced_test_idx)
                 logging.info(f'[Fold {k+1}/5] balanced test windows: total={2*m}  pos={m}  neg={m}')
+        # Optional train balancing similarly
+        balanced_train_idx = train_idx
+        if args.train_balance:
+            # compute labels for train samples
+            tpos_ids = []
+            tneg_ids = []
+            for idx in train_idx:
+                y = Y[idx]
+                is_pos = (torch.tensor(y) >= args.threshold).any().item()
+                (tpos_ids if is_pos else tneg_ids).append(idx)
+            m = min(len(tpos_ids), len(tneg_ids))
+            if m > 0:
+                rng2 = random.Random(args.seed + 100 + k)
+                rng2.shuffle(tpos_ids)
+                rng2.shuffle(tneg_ids)
+                balanced_train_idx = tpos_ids[:m] + tneg_ids[:m]
+                rng2.shuffle(balanced_train_idx)
+                logging.info(f'[Fold {k+1}/5] balanced train windows: total={2*m}  pos={m}  neg={m}')
         # Apply the same clamping behavior to both train and test inputs when truncation is enabled
-        train_ds = WindowDataset(X, Y, N, indices=train_idx, clip_max=args.trunc_temp)
+        train_ds = WindowDataset(X, Y, N, indices=balanced_train_idx, clip_max=args.trunc_temp)
         test_ds = WindowDataset(X, Y, N, indices=balanced_test_idx, clip_max=args.trunc_temp)
         train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=False)
         test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, drop_last=False)
@@ -311,6 +389,10 @@ def main():
         best_sup1 = 0
         best_ep = 0
         best_rep = ''
+        # checkpoint dir
+        ckpt_dir = Path('checkpoint') / str(args.dataset) / f'fold-{k+1}' / args.model
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
+        ckpt_path = ckpt_dir / 'best.pt'
 
         for ep in range(1, args.epochs + 1):
             train_loss = model.train_one_epoch(train_loader, opt, crit, auto_target_idx)
@@ -319,6 +401,15 @@ def main():
             improved = m_mae < best_mae
             if improved:
                 best_mae, best_sup0, best_sup1, best_ep, best_rep = m_mae, sup0, sup1, ep, cls_rep
+                # save best checkpoint for this fold
+                try:
+                    torch.save({'epoch': ep,
+                                'state_dict': model.state_dict(),
+                                'val_mae': m_mae,
+                                'args': vars(args)}, ckpt_path)
+                    logging.info(f'[Fold {k+1}/5] Saved best checkpoint to {ckpt_path}')
+                except Exception as e:
+                    logging.warning(f'Failed to save checkpoint: {e}')
             # Compact per-epoch log
             logging.info(f'[Fold {k+1}/5][Epoch {ep}/{args.epochs}] train L1: {train_loss:.4f}  val MAE: {m_mae:.4f}  Support: neg={sup0} pos={sup1}' + ('  [improved]' if improved else ''))
             if improved:
