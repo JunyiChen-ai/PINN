@@ -123,6 +123,8 @@ def resolve_baseline_from_name(name: str):
         return (None, False, False)
     if key in ('cnn-lstm', 'cnnlstm', 'conv-lstm', 'convlstm'):
         return ('cnn_lstm', False, False)
+    if key in ('flashnet', 'stgconvn', 'st-gconvn'):
+        return ('flashnet', False, False)
     raise ValueError(f'Unknown baseline model name: {name}')
 
 
@@ -371,3 +373,119 @@ class CNNLSTMForecaster(nn.Module):
 
 
 __all__.extend(['CNNLSTMForecaster'])
+
+# ================== FlashNet (ST-GConvN) temperature forecaster ==================
+
+
+class GraphConv(nn.Module):
+    def __init__(self, c_in: int, c_out: int):
+        super().__init__()
+        self.lin = nn.Linear(c_in, c_out, bias=False)
+        self.act = nn.GELU()
+
+    def forward(self, x_ntc: torch.Tensor, A_norm: torch.Tensor) -> torch.Tensor:
+        # x_ntc: [B, N, C]
+        # A_norm: [N, N]
+        B, N, _ = x_ntc.shape
+        Xw = self.lin(x_ntc)  # [B,N,C_out]
+        Ab = A_norm.unsqueeze(0).expand(B, -1, -1)  # [B,N,N]
+        out = torch.bmm(Ab, Xw)  # [B,N,C_out]
+        return self.act(out)
+
+
+class STGConvN(nn.Module):
+    def __init__(self, c_mid: int, k_t: int = 3, dil1: int = 1, dil2: int = 1):
+        super().__init__()
+        self.temp1 = TemporalBlock(c_mid, c_mid, kernel_size=k_t, dilation=dil1)
+        self.gconv = GraphConv(c_mid, c_mid)
+        self.temp2 = TemporalBlock(c_mid, c_mid, kernel_size=k_t, dilation=dil2)
+
+    def forward(self, x: torch.Tensor, A_norm: torch.Tensor) -> torch.Tensor:
+        # x: [B,N,C,T]
+        B, N, C, T = x.shape
+        z = x.reshape(B * N, C, T)
+        z = self.temp1(z)
+        z = z.reshape(B, N, C, T)
+        # graph conv per time step
+        outs = []
+        for t in range(T):
+            xt = z[:, :, :, t].contiguous()  # [B,N,C]
+            outs.append(self.gconv(xt, A_norm))
+        v = torch.stack(outs, dim=-1)  # [B,N,C,T]
+        v2 = v.reshape(B * N, C, T)
+        v2 = self.temp2(v2)
+        v2 = v2.reshape(B, N, C, T)
+        return v2
+
+
+class FlashNetForecaster(nn.Module):
+    def __init__(
+        self,
+        d_in: int,
+        horizon: int,
+        c_hidden: int = 64,
+        k_t: int = 3,
+        dilations: tuple[int, int] = (1, 1),
+    ) -> None:
+        super().__init__()
+        self.horizon = horizon
+        self.d_in = d_in
+        self.c_in = 1
+        self.c_hidden = c_hidden
+        d1, d2 = dilations
+        self.in_proj = nn.Conv1d(self.c_in, c_hidden, kernel_size=1)
+        self.block = STGConvN(c_hidden, k_t, d1, d2)
+        self.head = nn.Sequential(
+            nn.Linear(c_hidden, c_hidden),
+            nn.GELU(),
+            nn.Linear(c_hidden, horizon),
+        )
+
+    def build_adjacency(self, N: int, device: torch.device) -> torch.Tensor:
+        # Full graph without self-loops, normalized: D^{-1/2} A D^{-1/2}
+        A = torch.ones(N, N, device=device)
+        A.fill_diagonal_(0.0)
+        deg = A.sum(dim=1).clamp_min(1e-6)
+        Dmh = torch.diag(torch.pow(deg, -0.5))
+        return Dmh @ A @ Dmh
+
+    def forward(self, x: torch.Tensor, target_index: int | None = None) -> torch.Tensor:
+        # x: [B,T,D]
+        B, T, D = x.shape
+        assert D == self.d_in, f'd_in mismatch: got {D}, expected {self.d_in}'
+        xn = x.permute(0, 2, 1).unsqueeze(2).contiguous()  # [B,N,1,T]
+        Bn, N, C, Tr = xn.shape
+        z = xn.reshape(Bn * N, C, Tr)
+        z = self.in_proj(z)
+        z = z.reshape(Bn, N, self.c_hidden, Tr)
+        A_norm = self.build_adjacency(N, x.device)
+        z = self.block(z, A_norm)
+        if target_index is None:
+            target_index = N - 1
+        z_tgt = z[:, target_index, :, -1]  # [B,C_hidden]
+        yhat = self.head(z_tgt)
+        return yhat.unsqueeze(-1)
+
+    def train_one_epoch(self, train_loader, optimizer, crit_data, target_channel_index: Optional[int] = None) -> float:
+        self.train()
+        total = 0.0
+        n = 0
+        device = next(self.parameters()).device
+        for batch in train_loader:
+            if isinstance(batch, (list, tuple)) and len(batch) == 3:
+                xb, yb, _ = batch
+            else:
+                xb, yb = batch
+            xb = xb.to(device)
+            yb = yb.to(device)
+            optimizer.zero_grad()
+            yhat = self.forward(xb, target_channel_index).squeeze(-1)
+            loss = crit_data(yhat, yb)
+            loss.backward()
+            optimizer.step()
+            total += loss.item() * xb.size(0)
+            n += xb.size(0)
+        return total / max(n, 1)
+
+
+__all__.extend(['FlashNetForecaster'])

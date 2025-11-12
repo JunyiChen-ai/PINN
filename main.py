@@ -391,6 +391,15 @@ def main():
                     bidirectional=False,
                     dropout=args.dropout,
                 ).to(device)
+            elif rnn_type == 'flashnet' or args.model.lower() in ('flashnet','stgconvn','st-gconvn'):
+                from baseline import FlashNetForecaster
+                model = FlashNetForecaster(
+                    d_in=d_in,
+                    horizon=args.horizon,
+                    c_hidden=args.hidden_size,
+                    k_t=3,
+                    dilations=(1,1),
+                ).to(device)
             else:
                 model = BaselineForecaster(
                     d_in=d_in,
