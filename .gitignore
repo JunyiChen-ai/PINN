@@ -1,0 +1,11 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+
+# Training outputs
+log/
+checkpoint/
+draw/
+
+# Dataset caches
+DataForFlashover/
